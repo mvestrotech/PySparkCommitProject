@@ -38,20 +38,21 @@ commit_df.withColumn('word', f.explode(f.split(f.lower(f.col('commit')), ' '))) 
     .filter(f.col('word').isin(stripedStopWords) == False) \
     .filter(f.length(f.col('word')) > 2) \
     .groupBy('word') \
-    .count().sort('count', ascending=False) \
+    .agg(f.count("word").alias("Total-Word")) \
+    .sort(f.desc("Total-Word")) \
     .show(n=10)
 
-# +-------------------+-------+                                                   
-# |               word|  count|
-# +-------------------+-------+
-# |                the|5492988|
-# |     signed-off-by:|1867247|
-# |               this|1654049|
-# |                for|1564985|
-# |                and|1439672|
-# |       reviewed-by:| 938526|
-# |               that| 908154|
-# |               with| 681533|
-# |cr-commit-position:| 669387|
-# |               from| 639368|
-# +-------------------+-------+
+# +-------------------+----------+
+# |               word|Total-Word|
+# +-------------------+----------+
+# |                the|   5492988|
+# |     signed-off-by:|   1867247|
+# |               this|   1654049|
+# |                for|   1564985|
+# |                and|   1439672|
+# |       reviewed-by:|    938526|
+# |               that|    908154|
+# |               with|    681533|
+# |cr-commit-position:|    669387|
+# |               from|    639368|
+# +-------------------+----------+
