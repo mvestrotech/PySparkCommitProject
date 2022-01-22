@@ -1,8 +1,8 @@
-import os
-from time import sleep
+from pyspark.sql.functions import col, when, add_months, current_timestamp, unix_timestamp, desc
 
-from pyspark.sql import SparkSession
 import pyspark.sql.functions as f
+from pyspark.sql import SparkSession
+from pyspark.sql.types import StructType, StringType
 
 spark = SparkSession \
     .builder \
@@ -10,25 +10,56 @@ spark = SparkSession \
     .master("local[*]") \
     .getOrCreate()
 
-spark.conf.set("spark.sql.legacy.timeParserPolicy", "LEGACY")
-
 commit_file = "dataset/full.csv"
 
+schema = StructType() \
+    .add("commit", StringType(), True) \
+    .add("author", StringType(), True) \
+    .add("date", StringType(), True) \
+    .add("message", StringType(), True) \
+    .add("repo", StringType(), True)
+
 commit_df = spark.read.format("csv") \
+    .option("wholeFile", True) \
+    .option("multiline", True) \
     .option("header", "true") \
     .option("inferSchema", "true") \
+    .schema(schema=schema) \
     .load(commit_file)
 
-commit_df.createOrReplaceTempView("commit_table")
+print("+----------------------------------------+")
+print("+-------------- Question 3 --------------+")
+print("+----------------------------------------+")
 
-question3 = spark.sql("""
-    SELECT  author as AUTEUR,
-            COUNT(commit) AS CONTRIBUTION
-    FROM commit_table
-    WHERE repo = 'apache/spark'
-    AND date IS NOT NULL 
-    AND date_format(to_date(date, "EEE LLL dd hh:mm:ss yyyy"), "yyyy-MM-dd") >= add_months(current_date(), -24) 
-    group by author
-    order by COUNT(commit) DESC
-    """) \
-    .show(n=1, truncate=False)
+twentyFourMonth = add_months(current_timestamp(), -24).cast("timestamp").cast("long")
+
+commit_df.select("author", "repo", "date") \
+    .filter("repo = 'apache/spark'") \
+    .withColumn("dateFormat", col("date").substr(5, 20)) \
+    .withColumn("dateTrim", when(unix_timestamp(col("dateFormat"), "MMM d HH:mm:ss yyyy ")
+                                 .isNotNull(), unix_timestamp(col("dateFormat"), "MMM d HH:mm:ss yyyy "))
+                .when(unix_timestamp(col("dateFormat"), "MMM dd HH:mm:ss yyyy")
+                      .isNotNull(), unix_timestamp(col("dateFormat"), "MMM dd HH:mm:ss yyyy"))
+                .otherwise(None)
+                ) \
+    .where(col("dateTrim").isNotNull()) \
+    .where((col("dateTrim") >= twentyFourMonth)) \
+    .groupby("author") \
+    .agg(f.count("repo").alias("Total-Commit")) \
+    .sort(desc("Total-Commit")) \
+    .show(n=10, truncate=False)
+
+# +----------------------------------------+------------+
+# |author                                  |Total-Commit|
+# +----------------------------------------+------------+
+# |HyukjinKwon <gurwls223@apache.org>      |136         |
+# |Wenchen Fan <wenchen@databricks.com>    |126         |
+# |Max Gekk <max.gekk@gmail.com>           |105         |
+# |Kent Yao <yaooqinn@hotmail.com>         |97          |
+# |Dongjoon Hyun <dongjoon@apache.org>     |86          |
+# |Liang-Chi Hsieh <viirya@gmail.com>      |86          |
+# |Dongjoon Hyun <dhyun@apple.com>         |85          |
+# |yi.wu <yi.wu@databricks.com>            |80          |
+# |Kousuke Saruta <sarutak@oss.nttdata.com>|62          |
+# |Yuming Wang <yumwang@ebay.com>          |59          |
+# +----------------------------------------+------------+
