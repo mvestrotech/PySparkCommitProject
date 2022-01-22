@@ -1,8 +1,6 @@
-import os
-from time import sleep
-
-from pyspark.sql import SparkSession
 import pyspark.sql.functions as f
+from pyspark.sql import SparkSession
+from pyspark.sql.types import StructType, StringType
 
 spark = SparkSession \
     .builder \
@@ -12,17 +10,34 @@ spark = SparkSession \
 
 commit_file = "dataset/full.csv"
 
+schema = StructType() \
+    .add("commit", StringType(), True) \
+    .add("author", StringType(), True) \
+    .add("date", StringType(), True) \
+    .add("message", StringType(), True) \
+    .add("repo", StringType(), True)
+
 commit_df = spark.read.format("csv") \
+    .option("wholeFile", True) \
+    .option("multiline", True) \
     .option("header", "true") \
     .option("inferSchema", "true") \
+    .schema(schema=schema) \
     .load(commit_file)
 
-commit_df.createOrReplaceTempView("commit_table")
+print("+----------------------------------------+")
+print("+-------------- Question 2 --------------+")
+print("+----------------------------------------+")
 
-question2 = spark.sql(
-    """SELECT author, count(commit) As TotalCommit
-    FROM commit_table
-    WHERE repo = "apache/spark"
-    GROUP BY author
-    ORDER BY TotalCommit DESC""") \
-        .show(n=1, truncate=False)
+commit_df.groupBy("author", "repo")\
+    .agg(f.count("commit").alias("Total-Commit"))\
+    .sort(f.desc("Total-Commit"))\
+    .filter("repo  = 'apache/spark'")\
+    .limit(1)\
+    .show(truncate=False)
+
+# +---------------------------------------+------------+------------+
+# |author                                 |repo        |Total-Commit|
+# +---------------------------------------+------------+------------+
+# |Matei Zaharia <matei@eecs.berkeley.edu>|apache/spark|1316        |
+# +---------------------------------------+------------+------------+
