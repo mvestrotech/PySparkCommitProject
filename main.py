@@ -7,6 +7,8 @@ from pyspark.sql.types import StructType, StringType
 spark = SparkSession \
     .builder \
     .appName("Projet pySpark") \
+    .config("spark.executor.memory", "2g") \
+    .config("spark.executor.cores", "2") \
     .master("local[*]") \
     .getOrCreate()
 
@@ -25,7 +27,8 @@ commit_df = spark.read.format("csv") \
     .option("header", "true") \
     .option("inferSchema", "true") \
     .schema(schema=schema) \
-    .load(commit_file)
+    .load(commit_file) \
+    .repartition(10)
 
 print("+----------------------------------------+")
 print("+-------------- Question 1 --------------+")
